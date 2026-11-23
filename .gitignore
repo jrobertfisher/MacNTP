@@ -1,0 +1,12 @@
+# Build output (release files go on GitHub Releases)
+build/
+dist/
+
+# Local emulator test disks and scripts
+test/
+
+# Reference images that aren't ours (Apple artwork); never publish
+icon-src/
+
+*.dsk
+*.hfs
