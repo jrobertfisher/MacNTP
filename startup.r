@@ -43,8 +43,8 @@ data 'MNtp' (0, "Owner resource") {
 };
 
 resource 'vers' (1) {
-    0x02, 0x00, release, 0x00, verUS, "2.0",
-    "2.0, MacNTP: sets your clock from an NTP server"
+    0x01, 0x00, release, 0x00, verUS, "1.0",
+    "1.0, MacNTP: sets your clock from an NTP server"
 };
 
 resource 'SIZE' (-1) {

@@ -28,11 +28,25 @@ resource 'DITL' (-4064) { {
     { 40, 308, 56, 438 },   StaticText { disabled, "(blank = automatic)" };
     { 66, 100, 86, 430 },   Control { enabled, -4064 };
     { 92, 100, 112, 430 },  Control { enabled, -4063 };
-    { 120, 100, 138, 430 }, CheckBox { enabled, "Sync at startup" };
+    { 120, 100, 138, 300 }, CheckBox { enabled, "Sync at startup" };
     { 150, 340, 170, 430 }, Button { enabled, "Sync Now" };
     { 152, 100, 168, 335 }, StaticText { disabled, "" };
-    { 182, 100, 246, 440 }, StaticText { disabled, "" }
+    { 182, 100, 246, 440 }, StaticText { disabled, "" };
+    { 118, 340, 138, 430 }, Button { enabled, "About..." }
 } };
+
+/* About MacNTP: laid out like MacShell's. A click or a key closes it. */
+resource 'DLOG' (-4062, purgeable) {
+    { 0, 0, 156, 560 }, dBoxProc, invisible, noGoAway, 0, -4062, "", centerMainScreen
+};
+resource 'DITL' (-4062, purgeable) { {
+    { 14, 10, 142, 138 },   Picture { disabled, -4062 };
+    { 14, 156, 32, 550 },   StaticText { disabled, "MacNTP v1.0" };
+    { 34, 156, 52, 550 },   StaticText { disabled, "NTP Client for MacOS 7+" };
+    { 54, 156, 72, 550 },   StaticText { disabled, "https://www.github.com/jrobertfisher/MacNTP" }
+} };
+
+#include "about.r"
 
 resource 'CNTL' (-4064) {
     { 66, 100, 86, 430 }, 0, visible, 110, -4064,
@@ -93,10 +107,10 @@ resource 'BNDL' (-4064) {
 };
 resource 'FREF' (-4064) { 'cdev', 0, "" };
 data 'MNtc' (0, "Owner resource") {
-    $"0A" "MacNTP 2.0"
+    $"0A" "MacNTP 1.0"
 };
 
 resource 'vers' (1) {
-    0x02, 0x00, release, 0x00, verUS, "2.0",
-    "2.0, MacNTP: sets your clock from an NTP server"
+    0x01, 0x00, release, 0x00, verUS, "1.0",
+    "1.0, MacNTP: sets your clock from an NTP server"
 };

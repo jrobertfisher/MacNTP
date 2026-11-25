@@ -13,7 +13,7 @@
  *   'STR ' 128  NTP server: a host name or IPv4 address (default pool.ntp.org).
  *               Names are looked up with a small built-in DNS client, and every
  *               address returned is tried in turn.
- *   'STR ' 129  Standard-time UTC offset in seconds (default -21600, US Central).
+ *   'STR ' 129  Standard-time UTC offset in seconds (default: the Map control panel, else UTC).
  *               Leave empty to use the Map control panel's time zone.
  *   'STR ' 130  Daylight saving rule: "US" (default), "EU" or "none".
  *   'STR ' 131  DNS server IPv4 address (default 1.1.1.1).
@@ -85,7 +85,7 @@ enum {
 #define NTP_TO_MAC_EPOCH 126230400UL
 /* Used only if no offset is set in STR 129 and the Map control panel is unset. */
 #define DEFAULT_DNS 0x01010101UL      /* 1.1.1.1 if STR 131 is empty or invalid */
-#define FALLBACK_UTC_OFFSET (-21600L)   /* US Central Standard Time */
+#define FALLBACK_UTC_OFFSET (0L)        /* UTC */
 
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                      */
@@ -198,7 +198,7 @@ static long LocalOffset(const char **source)
     offset = loc.gmtDelta & 0x00FFFFFF;
     if (offset & 0x00800000) offset |= 0xFF000000;      /* sign-extend 24 bits */
     if (offset == 0 && loc.latitude == 0 && loc.longitude == 0) {
-        *source = "default (US Central), Map control panel not set";
+        *source = "default (UTC), Map control panel not set";
         return FALLBACK_UTC_OFFSET;
     }
     *source = "Map control panel";

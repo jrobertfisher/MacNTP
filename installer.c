@@ -36,7 +36,8 @@ enum {
     kDiskPopup    = 4,
     kStatusText   = 5,
     kDiskMenuID   = 128,
-    kMaxDisks     = 20
+    kMaxDisks     = 20,
+    kLicenseText  = 128
 };
 
 
@@ -57,6 +58,148 @@ static short gDisks[kMaxDisks];        /* vRefNums, in menu order */
 static short gDiskCount;
 
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* the license window                                                 */
+/* ------------------------------------------------------------------ */
+
+static TEHandle gTE;
+static ControlHandle gScroll;
+static short gLineHeight;
+
+static void ScrollTo(short value)
+{
+    short old = GetControlValue(gScroll);
+    if (value < 0) value = 0;
+    if (value > GetControlMaximum(gScroll)) value = GetControlMaximum(gScroll);
+    SetControlValue(gScroll, value);
+    TEScroll(0, (old - value) * gLineHeight, gTE);
+}
+
+static pascal void ScrollAction(ControlHandle c, short part)
+{
+    short page = ((**gTE).viewRect.bottom - (**gTE).viewRect.top) / gLineHeight - 1;
+    short v = GetControlValue(c);
+    switch (part) {
+    case kControlUpButtonPart:   ScrollTo(v - 1); break;
+    case kControlDownButtonPart: ScrollTo(v + 1); break;
+    case kControlPageUpPart:     ScrollTo(v - page); break;
+    case kControlPageDownPart:   ScrollTo(v + page); break;
+    }
+}
+
+/* Shows the licenses; returns true if the user clicks Agree. */
+static Boolean LicenseAgreed(void)
+{
+    WindowPtr w;
+    Rect r, view, text;
+    ControlHandle agree, disagree;
+    ControlActionUPP action = NewControlActionUPP(ScrollAction);
+    Handle h = GetResource('TEXT', kLicenseText);
+    FontInfo fi;
+    short lines, visible, result = -1;
+    EventRecord ev;
+
+    if (!h) return true;                               /* nothing to show */
+    SetRect(&r, 0, 0, 500, 360);
+    OffsetRect(&r, (qd.screenBits.bounds.right - 500) / 2, 50);
+    w = NewWindow(NULL, &r, "\pMacNTP License Agreement", true, movableDBoxProc,
+                  (WindowPtr)-1, false, 0);
+    SetPort(w);
+
+    SetRect(&view, 16, 40, 468, 310);
+    text = view;
+    InsetRect(&text, 4, 4);
+    TextFont(kFontIDGeneva);
+    TextSize(9);
+    GetFontInfo(&fi);
+    gLineHeight = fi.ascent + fi.descent + fi.leading;
+    gTE = TENew(&text, &text);
+    HLock(h);
+    TESetText(*h, GetHandleSize(h), gTE);
+    HUnlock(h);
+    TECalText(gTE);
+    lines = (**gTE).nLines;
+    visible = (text.bottom - text.top) / gLineHeight;
+
+    SetRect(&r, view.right, view.top, view.right + 16, view.bottom);
+    gScroll = NewControl(w, &r, "\p", true, 0, 0, lines > visible ? lines - visible : 0,
+                         scrollBarProc, 0);
+    SetRect(&r, 388, 322, 468, 342);
+    agree = NewControl(w, &r, "\pAgree", true, 0, 0, 1, pushButProc, 0);
+    SetRect(&r, 290, 322, 370, 342);
+    disagree = NewControl(w, &r, "\pDisagree", true, 0, 0, 1, pushButProc, 0);
+
+    while (result < 0) {
+        if (!WaitNextEvent(everyEvent, &ev, 20, NULL)) continue;
+        switch (ev.what) {
+        case updateEvt:
+            if ((WindowPtr)ev.message == w) {
+                BeginUpdate(w);
+                EraseRect(&w->portRect);
+                TextFont(systemFont);
+                TextSize(12);
+                MoveTo(16, 26);
+                DrawString("\pPlease read the license agreement. Click Agree to install MacNTP.");
+                TextFont(kFontIDGeneva);
+                TextSize(9);
+                FrameRect(&view);
+                TEUpdate(&view, gTE);
+                DrawControls(w);
+                /* the default button outline goes on Agree */
+                PenSize(3, 3);
+                SetRect(&r, 384, 318, 472, 346);
+                FrameRoundRect(&r, 16, 16);
+                PenNormal();
+                EndUpdate(w);
+            }
+            break;
+        case mouseDown:
+        {
+            WindowPtr hit;
+            short part = FindWindow(ev.where, &hit);
+            if (hit != w) break;
+            if (part == inDrag) {
+                DragWindow(w, ev.where, &qd.screenBits.bounds);
+            } else if (part == inContent) {
+                ControlHandle c;
+                Point p = ev.where;
+                GlobalToLocal(&p);
+                part = FindControl(p, w, &c);
+                if (c == gScroll) {
+                    if (part == kControlIndicatorPart) {
+                        short before = GetControlValue(gScroll);
+                        TrackControl(c, p, NULL);
+                        TEScroll(0, (before - GetControlValue(gScroll)) * gLineHeight, gTE);
+                    } else if (part) {
+                        TrackControl(c, p, action);
+                    }
+                } else if (c == agree && TrackControl(c, p, NULL)) {
+                    result = 1;
+                } else if (c == disagree && TrackControl(c, p, NULL)) {
+                    result = 0;
+                }
+            }
+            break;
+        }
+        case keyDown:
+        case autoKey:
+        {
+            char ch = (char)(ev.message & charCodeMask);
+            if (ch == 0x1B || ((ev.modifiers & cmdKey) && ch == '.')) result = 0;   /* Esc, Cmd-. */
+            else if (ch == 0x1E) ScrollTo(GetControlValue(gScroll) - 1);           /* up arrow */
+            else if (ch == 0x1F) ScrollTo(GetControlValue(gScroll) + 1);           /* down arrow */
+            else if (ch == 0x0B) ScrollTo(GetControlValue(gScroll) - visible);     /* page up */
+            else if (ch == 0x0C) ScrollTo(GetControlValue(gScroll) + visible);     /* page down */
+            break;
+        }
+        }
+    }
+    TEDispose(gTE);
+    DisposeWindow(w);
+    ReleaseResource(h);
+    return result == 1;
+}
 
 static Handle Item(DialogPtr d, short i)
 {
@@ -189,8 +332,9 @@ static OSErr InstallPart(short vRefNum, const MNPart *c, Boolean *replaced)
     return err;
 }
 
-/* Version 1 of MacNTP was an application called "MacNTP" kept in Startup Items. */
-static void RemoveVersion1(short vRefNum)
+/* An early, unreleased MacNTP was an application called "MacNTP" kept in
+   Startup Items, before the control panel; remove it if it is there. */
+static void RemoveOldApp(short vRefNum)
 {
     short fv; long dir;
     FSSpec spec;
@@ -243,7 +387,7 @@ static void DoInstall(DialogPtr d)
         }
         anyReplaced |= replaced;
     }
-    RemoveVersion1(vRefNum);
+    RemoveOldApp(vRefNum);
     InitCursor();
 
     PStrCopyC(msg, anyReplaced ? "MacNTP was updated on \"" : "MacNTP is installed on \"");
@@ -275,7 +419,7 @@ static void DoRemove(DialogPtr d)
         }
         removed++;
     }
-    RemoveVersion1(vRefNum);
+    RemoveOldApp(vRefNum);
     if (removed) {
         PStrCopyC(msg, "MacNTP was removed from \"");
         PStrAppend(msg, disk);
@@ -310,6 +454,9 @@ int main(void)
         StopAlert(129, NULL);
         return 0;
     }
+
+    if (!LicenseAgreed())
+        return 0;
 
     d = GetNewDialog(kDialogID, NULL, (WindowPtr)-1);
     if (!d) return 0;

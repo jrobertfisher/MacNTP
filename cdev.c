@@ -39,8 +39,11 @@ enum {
     kStartupCheck,
     kSyncButton,
     kClockText,
-    kStatusText
+    kStatusText,
+    kAboutButton
 };
+
+enum { kAboutDialog = -4062 };
 
 enum {
     kZoneUTCItem   = 13,            /* zone menu item for UTC; item n = UTC + (n - 13) hours */
@@ -259,6 +262,35 @@ static void PollSync(DialogPtr d, short n, CPState *st)
 /* Control Panel entry point                                          */
 /* ------------------------------------------------------------------ */
 
+/* About MacNTP, like MacShell's: shown until a click or a key. */
+static void ShowAbout(void)
+{
+    GrafPtr port;
+    DialogPtr d;
+    EventRecord ev;
+
+    GetPort(&port);
+    d = GetNewDialog(kAboutDialog, NULL, (WindowPtr)-1);
+    if (!d) return;
+    ShowWindow(d);
+    SetPort(d);
+    DrawDialog(d);
+    FlushEvents(mDownMask | keyDownMask | mUpMask, 0);
+    for (;;) {
+        if (WaitNextEvent(mDownMask | keyDownMask | updateMask, &ev, 20, NULL)) {
+            if (ev.what == updateEvt && (DialogPtr)ev.message == d) {
+                BeginUpdate(d);
+                DrawDialog(d);
+                EndUpdate(d);
+            } else if (ev.what == mouseDown || ev.what == keyDown) {
+                break;
+            }
+        }
+    }
+    DisposeDialog(d);
+    SetPort(port);
+}
+
 pascal long MacNTPcdev(short message, short item, short numItems, short cpID,
                        EventRecord *ev, long storage, DialogPtr d)
 {
@@ -293,6 +325,9 @@ pascal long MacNTPcdev(short message, short item, short numItems, short cpID,
             break;
         case kSyncButton:
             StartSync(d, numItems, *h);
+            break;
+        case kAboutButton:
+            ShowAbout();
             break;
         }
         break;

@@ -4,6 +4,7 @@
  */
 #include "common.h"
 #include <Folders.h>
+#include <OSUtils.h>
 #include <Resources.h>
 #include <Memory.h>
 #include <Script.h>
@@ -15,14 +16,44 @@
 /* Preferences file                                                   */
 /* ------------------------------------------------------------------ */
 
+/* The time zone set in the Map control panel, as a whole-hour standard
+   offset and a matching daylight saving rule; UTC if Map was never set.
+   Map's gmtDelta (24 bits, signed) is the current offset from UTC, which
+   includes daylight saving when its "Daylight Savings Time" box is on (the
+   top bit of dlsDelta). */
+static void MapTimeZone(long *stdOffset, short *dstRule)
+{
+    MachineLocation loc;
+    long delta, hours;
+
+    ReadLocation(&loc);
+    delta = loc.u.gmtDelta & 0x00FFFFFFL;
+    if (delta & 0x00800000L) delta |= 0xFF000000L;     /* sign-extend */
+    if (loc.latitude == 0 && loc.longitude == 0 && delta == 0) {
+        *stdOffset = 0;                                 /* never set: UTC */
+        *dstRule = kDSTNone;
+        return;
+    }
+    if (loc.u.dlsDelta & 0x80) delta -= 3600;
+    hours = (delta + (delta < 0 ? -1800 : 1800)) / 3600;
+    if (hours < -12) hours = -12;
+    if (hours > 14) hours = 14;
+    *stdOffset = hours * 3600;
+    if (hours >= -10 && hours <= -4)
+        *dstRule = kDSTUS;
+    else if (hours >= 0 && hours <= 3)
+        *dstRule = kDSTEU;
+    else
+        *dstRule = kDSTNone;
+}
+
 void PrefsDefaults(MacNTPPrefs *p)
 {
     memset(p, 0, sizeof *p);
     p->version = kPrefsVersion;
     PStrCopyC(p->server, "pool.ntp.org");
     p->dns[0] = 0;                      /* automatic */
-    p->stdOffset = -6L * 3600;          /* US Central */
-    p->dstRule = kDSTUS;
+    MapTimeZone(&p->stdOffset, &p->dstRule);
     p->syncAtStartup = true;
     PStrCopyC(p->lastMessage, "Not synced yet.");
 }

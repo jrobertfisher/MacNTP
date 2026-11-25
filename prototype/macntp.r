@@ -18,7 +18,7 @@ resource 'STR ' (131, "DNS server") {
 /* Standard-time UTC offset in seconds. Leave empty to use the Map control panel.
    Examples: -18000 Eastern, -21600 Central, -25200 Mountain, -28800 Pacific. */
 resource 'STR ' (129, "Standard UTC offset") {
-    "-21600"
+    ""
 };
 
 /* Daylight saving rule: "US", "EU" or "none". */

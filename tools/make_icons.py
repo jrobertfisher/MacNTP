@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Draws MacNTP's icon (an original clock face) and writes Rez resources:
-   ICN# / ics# (black & white + mask) and icl8 / ics8 (Mac 256-colour palette).
+"""Draws MacNTP's icon (an original control panel with a clock) and writes Rez resources:
+   ICN# / ics# (black & white + mask) and icl8 / ics8 (Mac 256-color palette).
 
-   Usage: make_icons.py <output icons.r> <output preview.png>
+   Usage: make_icons.py <output icons.r> <output preview.png> [<output about.r>]
 """
 import math
 import sys
@@ -13,7 +13,7 @@ ORANGE = (255, 149, 0)
 
 
 def mac_palette():
-    """The standard Macintosh 8-bit colour table (clut 8)."""
+    """The standard Macintosh 8-bit color table (clut 8)."""
     pal = []
     for i in range(215):                   # 6x6x6 cube, white first, black left out
         pal.append((255 - 51 * (i // 36), 255 - 51 * ((i // 6) % 6), 255 - 51 * (i % 6)))
@@ -33,7 +33,7 @@ def nearest(rgb):
     gray = abs(r - g) < 12 and abs(g - b) < 12
     best, bi = None, 0
     for i, (pr, pg, pb) in enumerate(PAL):
-        if gray and not (pr == pg == pb):  # keep greys grey
+        if gray and not (pr == pg == pb):  # keep grays gray
             continue
         d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
         if best is None or d < best:
@@ -41,56 +41,108 @@ def nearest(rgb):
     return bi
 
 
-def draw_clock(size, colour, simple):
-    """Draws the clock at size*SS and returns an RGBA image at `size`."""
-    S = size * SS
-    img = Image.new('RGBA', (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    c = S / 2
-    px = SS                                # one final pixel
+def draw_panel(size, color, simple):
+    """MacNTP's icon, drawn in the style of the Mac OS 8 control panels: a
+    light gray beveled panel with a slider strip along the bottom, and the
+    symbol (MacNTP's clock) above it. Drawn here from scratch, pixel by
+    pixel. Returns an RGBA image at `size`."""
+    big = size == 32
+    BLACK, WHITE = (0, 0, 0, 255), (255, 255, 255, 255)
+    FACE = (221, 221, 221, 255) if color else WHITE
+    MID = (136, 136, 136, 255) if color else BLACK
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    p = img.load()
 
-    def line(a_deg, r0, r1, width, fill, dx=0.0):
+    def rect(x0, y0, x1, y1, c):              # inclusive
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                p[x, y] = c
+
+    n = size - 1
+    rect(0, 0, n, n, BLACK)                    # outline
+    rect(1, 1, n - 1, n - 1, FACE)
+    if color:                                  # bevel: highlight top and left
+        rect(1, 1, n - 1, 1, WHITE)
+        rect(1, 1, 1, n - 1, WHITE)
+
+    # the slider strip along the bottom
+    if big:
+        sep, ty, tx0, tx1, kx = 23, 26, 3, 28, 15
+    else:
+        sep, ty, tx0, tx1, kx = 11, 13, 2, 13, 7
+    rect(1, sep, n - 1, sep, MID)              # divider
+    if color:
+        rect(1, sep + 1, n - 1, sep + 1, WHITE)
+    rect(tx0, ty, tx1, ty, MID)                # groove: dark top edge ...
+    if big:
+        rect(tx0, ty, tx0, ty + 1, MID)
+        rect(tx0 + 1, ty + 1, tx1, ty + 1, WHITE if color else FACE)
+        rect(tx0, ty + 2, tx1, ty + 2, WHITE if color else BLACK)   # ... light bottom edge
+    # the knob: a small raised block standing on the groove
+    if big:
+        rect(kx - 2, ty - 2, kx + 1, ty + 3, BLACK)
+        rect(kx - 1, ty - 1, kx, ty + 2, FACE if color else WHITE)
+        if color:
+            rect(kx - 1, ty - 1, kx - 1, ty + 2, WHITE)
+    else:
+        rect(kx - 1, ty - 1, kx, ty + 1, BLACK)
+
+    # the clock, drawn smooth and placed in the symbol area
+    if big:
+        area = (2, 2, n - 1, sep - 1)          # x0, y0, x1, y1 (exclusive end)
+        cx, cy, R = 16.0, 12.0, 9.6
+    else:
+        area = (1, 1, n, sep)
+        cx, cy, R = 8.0, 5.8, 4.6
+    S = size * SS
+    clk = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(clk)
+    px = SS
+    c = (cx * px, cy * px)
+    Rp = R * px
+    d.ellipse([c[0] - Rp, c[1] - Rp, c[0] + Rp, c[1] + Rp], fill=(255, 255, 255), outline=(0, 0, 0),
+              width=int(px * (1.0 if big else 0.9)))
+
+    def line(a_deg, r0, r1, width, fill):
         a = math.radians(a_deg)
-        x0, y0 = c + dx * px + r0 * math.sin(a), c - r0 * math.cos(a)
-        x1, y1 = c + dx * px + r1 * math.sin(a), c - r1 * math.cos(a)
-        d.line([(x0, y0), (x1, y1)], fill=fill, width=int(width))
-        for (x, y) in ((x0, y0), (x1, y1)):           # round caps
+        xa, ya = c[0] + r0 * math.sin(a), c[1] - r0 * math.cos(a)
+        xb, yb = c[0] + r1 * math.sin(a), c[1] - r1 * math.cos(a)
+        d.line([(xa, ya), (xb, yb)], fill=fill, width=int(width))
+        for (x, y) in ((xa, ya), (xb, yb)):
             d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=fill)
 
-    # Rounded-square face with a thin outline so it reads on a white desktop.
-    radius = S * 0.23
-    outline = (0, 0, 0) if not colour else (102, 102, 102)
-    d.rounded_rectangle([0.5 * px, 0.5 * px, S - 0.5 * px, S - 0.5 * px], radius=radius,
-                        fill=(255, 255, 255, 255), outline=outline, width=int(px))
-
-    R = S * 0.5
-    dark = (0, 0, 0) if not colour else (51, 51, 51)
-    light = (170, 170, 170)
     if not simple:
-        if colour:                                     # minute marks (colour 32px only)
-            for m in range(60):
-                if m % 5:
-                    line(m * 6, R * 0.80, R * 0.86, px * 0.6, light)
-        for h in range(12):                            # hour marks
+        for h in range(12):                    # hour marks
             long_mark = h % 3 == 0
-            line(h * 30, R * (0.66 if long_mark else 0.72), R * 0.86, px * (1.4 if long_mark else 1.0), dark)
-    else:
-        for h in range(0, 12, 3):
-            line(h * 30, R * 0.66, R * 0.84, px * 1.2, dark)
-
-    # Hands at 10:10, second hand on the 6.
-    hand = (0, 0, 0)
-    line(305, -R * 0.06, R * (0.46 if not simple else 0.42), px * (2.4 if not simple else 1.2), hand)    # hour
-    line(60, -R * 0.06, R * (0.68 if not simple else 0.62), px * (2.0 if not simple else 1.1), hand)     # minute
-    if colour:                                         # second hand: colour icons only
-        line(180, -R * 0.14, R * 0.74, px * 1.0, ORANGE, dx=0.5)
-        dot = px * (1.6 if not simple else 1.1)
-        d.ellipse([c + 0.5 * px - dot, c - dot, c + 0.5 * px + dot, c + dot], fill=ORANGE)
-    else:
-        dot = px * (1.4 if not simple else 0.9)
-        d.ellipse([c - dot, c - dot, c + dot, c + dot], fill=(0, 0, 0))
-
-    return img.resize((size, size), Image.LANCZOS)
+            line(h * 30, Rp * (0.62 if long_mark else 0.72), Rp * 0.82,
+                 px * (1.2 if long_mark else 0.8),
+                 (0, 0, 0) if long_mark or not color else (85, 85, 85))
+    line(305, -Rp * 0.06, Rp * (0.48 if not simple else 0.55), px * (1.6 if not simple else 1.0), (0, 0, 0))
+    line(60, -Rp * 0.06, Rp * (0.70 if not simple else 0.75), px * (1.3 if not simple else 1.0), (0, 0, 0))
+    if color and not simple:                   # orange second hand
+        line(180, -Rp * 0.12, Rp * 0.74, px * 1.25, ORANGE)
+        dot = px * 1.2
+        d.ellipse([c[0] - dot, c[1] - dot, c[0] + dot, c[1] + dot], fill=ORANGE)
+    clk = clk.resize((size, size), Image.LANCZOS)
+    # place the clock over the panel, inside the symbol area only, snapping
+    # each pixel to a solid color (classic icons are crisp, not smoothed)
+    for y in range(area[1], area[3]):
+        for x in range(area[0], area[2]):
+            r, g, b, a = clk.getpixel((x, y))
+            if a < 110:
+                continue
+            lum = 0.3 * r + 0.59 * g + 0.11 * b
+            if color and r > 160 and r - b > 90 and r - g > 30:
+                p[x, y] = ORANGE + (255,)
+            elif lum < 95:
+                p[x, y] = BLACK
+            elif color and lum < 185:
+                p[x, y] = (102, 102, 102, 255)
+            elif not color and lum < 140:
+                p[x, y] = BLACK
+            else:
+                p[x, y] = WHITE
+    return img
 
 
 def over_white(px):
@@ -142,22 +194,55 @@ def rez_8(rtype, idx):
     return f"data '{rtype}' (MACNTP_ICON_ID, purgeable) {{\n{body}\n}};\n"
 
 
-def main(out_r, out_png):
-    big_c, small_c = draw_clock(32, True, False), draw_clock(16, True, True)
-    big_bw, small_bw = draw_clock(32, False, False), draw_clock(16, False, True)
+def about_pict(icon32):
+    """The About box picture: the 32-pixel color icon enlarged 4x (128x128,
+    hard pixel edges like a classic icon), written by ImageMagick as a
+    version 2 PICT (QuickDraw on System 7 rejects the minimal version 1
+    form). Returns Rez hex."""
+    import subprocess, tempfile, os
+    big = Image.new('RGB', (32, 32), (255, 255, 255))
+    for y in range(32):
+        for x in range(32):
+            big.putpixel((x, y), PAL[icon32[y][x]])
+    big = big.resize((128, 128), Image.NEAREST)
+    with tempfile.TemporaryDirectory() as t:
+        png, pct = os.path.join(t, 'about.png'), os.path.join(t, 'about.pict')
+        big.save(png)
+        subprocess.check_call(['magick', png, '-colors', '256', 'PICT:' + pct])
+        data = open(pct, 'rb').read()[512:]          # drop the file header
+    data = (len(data) & 0xFFFF).to_bytes(2, 'big') + data[2:]   # picSize
+    return data.hex().upper()
+
+
+def main(out_r, out_png, out_about=None):
+    big_c, small_c = draw_panel(32, True, False), draw_panel(16, True, True)
+    big_bw, small_bw = draw_panel(32, False, False), draw_panel(16, False, True)
     icn, icn_m = to_bw(big_bw)
     ics, ics_m = to_bw(small_bw)
     icl8, ics8 = to_8bit(big_c), to_8bit(small_c)
 
     with open(out_r, 'w') as f:
-        f.write('/* MacNTP icon: an original clock face (generated by tools/make_icons.py). */\n')
+        f.write('/* MacNTP icon: an original control panel with a clock (generated by tools/make_icons.py). */\n')
         f.write('#ifndef MACNTP_ICON_ID\n#define MACNTP_ICON_ID 128\n#endif\n')
         f.write(rez_bw('ICN#', 32, icn, icn_m))
+        lines = hex_rows(icn, 4)                       # 'ICON': the 32x32 picture alone (dialogs)
+        body = '\n'.join(f'    $"{l}"' for l in lines)
+        f.write(f"data 'ICON' (MACNTP_ICON_ID, purgeable) {{\n{body}\n}};\n")
         f.write(rez_bw('ics#', 16, ics, ics_m))
         f.write(rez_8('icl8', icl8))
         f.write(rez_8('ics8', ics8))
 
-    # Preview: colour and B&W at 8x, on the classic grey desktop.
+    if out_about:
+        # white outside the icon's mask, so the picture's corners match the dialog
+        masked = [[icl8[y][x] if icn_m[y][x] else 0 for x in range(32)] for y in range(32)]
+        hexdata = about_pict(masked)
+        lines = [hexdata[i:i + 64] for i in range(0, len(hexdata), 64)]
+        body = '\n'.join(f'    $"{l}"' for l in lines)
+        with open(out_about, 'w') as f:
+            f.write('/* The About box picture (generated by tools/make_icons.py). */\n')
+            f.write(f"data 'PICT' (-4062, purgeable) {{\n{body}\n}};\n")
+
+    # Preview: color and B&W at 8x, on the classic gray desktop.
     scale, pad = 8, 24
     W = pad + 32 * scale + pad + 16 * scale + pad + 32 * scale + pad + 16 * scale + pad
     H = pad + 32 * scale + pad
@@ -188,4 +273,4 @@ def main(out_r, out_png):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)

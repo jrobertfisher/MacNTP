@@ -14,7 +14,7 @@ resource 'DLOG' (128) {
     noGoAway,
     0,
     128,
-    "MacNTP 2.0 Installer",
+    "MacNTP 1.0 Installer",
     centerMainScreen
 };
 
@@ -26,7 +26,7 @@ resource 'DITL' (128) {
         /* 4 */ { 84, 20, 104, 420 },   Control { enabled, 128 };
         /* 5 */ { 116, 20, 196, 420 },  StaticText { disabled, "" };
         /* 6 */ { 14, 20, 46, 52 },     Icon { disabled, 128 };
-        /* 7 */ { 14, 66, 34, 420 },    StaticText { disabled, "MacNTP 2.0" };
+        /* 7 */ { 14, 66, 34, 420 },    StaticText { disabled, "MacNTP 1.0" };
         /* 8 */ { 36, 66, 72, 420 },    StaticText { disabled, "Sets your Mac's clock from an internet time server (NTP)." }
     }
 };
@@ -52,6 +52,9 @@ resource 'DITL' (129) {
     }
 };
 
+/* The licenses, shown before installing (Mac line endings, made by the build). */
+data 'TEXT' (128, "Licenses") { $$read("licenses.txt") };
+
 /* The two MacNTP files, embedded. */
 data 'MNfk' (128, "MacNTP (control panel) resource fork")  { $$read("MacNTP.rsrc") };
 data 'MNdk' (128, "MacNTP (control panel) data fork")      { $$read("MacNTP.data") };
@@ -69,8 +72,8 @@ resource 'FREF' (128) { 'APPL', 0, "" };
 data 'MNti' (0, "Owner resource") { $"10" "MacNTP Installer" };
 
 resource 'vers' (1) {
-    0x02, 0x00, release, 0x00, verUS, "2.0",
-    "2.0, MacNTP Installer"
+    0x01, 0x00, release, 0x00, verUS, "1.0",
+    "1.0, MacNTP Installer"
 };
 
 resource 'SIZE' (-1) {

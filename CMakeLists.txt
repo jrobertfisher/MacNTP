@@ -30,7 +30,7 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/cdev.r
             -o MacNTP.bin --cc MacNTP.dsk -t cdev -c MNtc
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS MacNTPcdev cdev.r icons.r)
+    DEPENDS MacNTPcdev cdev.r icons.r about.r)
 add_custom_target(MacNTP_cdev ALL DEPENDS MacNTP.bin)
 
 # --- Set the Finder's hasBundle flag so both files show their icons ------
@@ -47,11 +47,16 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/MacNTP.bin ${CMAKE_CURRENT_BINARY_DIR}/MacNTPStartup.bin)
 add_custom_command(
+    OUTPUT licenses.txt
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/to_mac_text.py ${CMAKE_CURRENT_SOURCE_DIR}/docs/LICENSES.txt licenses.txt
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/docs/LICENSES.txt)
+add_custom_command(
     OUTPUT installer_res.rsrc.bin
     COMMAND ${REZ} ${CMAKE_CURRENT_SOURCE_DIR}/installer.r -I${REZ_INCLUDE_PATH} -I${CMAKE_CURRENT_SOURCE_DIR}
             -o installer_res.rsrc.bin
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS installer.r icons.r MacNTP.rsrc MacNTP.data MacNTPStartup.rsrc MacNTPStartup.data)
+    DEPENDS installer.r icons.r licenses.txt MacNTP.rsrc MacNTP.data MacNTPStartup.rsrc MacNTPStartup.data)
 add_custom_target(MacNTP_installer_res DEPENDS installer_res.rsrc.bin)
 add_dependencies(MacNTP_installer_res MacNTP_cdev MacNTPStartup_APPL)
 
